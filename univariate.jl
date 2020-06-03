@@ -30,7 +30,7 @@ samples: Array{Float,2}: sample measurements for the test
 Returns
 -------
 statistic: float: The computed F-value of the test.
-probability: float: The associated p-value from the F-distribution
+pvalue: float: The associated p-value from the F-distribution
 
 Notes
 -----
@@ -82,9 +82,9 @@ function one_way_anova(samples...)
 
   statistic = msd_between_groups / msd_within_groups
   f_dist = Distributions.FDist(df_between_groups, df_within_groups)
-  probability = Distributions.cdf(f_dist, statistic)
+  pvalue = 1 - Distributions.cdf(f_dist, statistic)
 
-  return statistic, probability
+  return statistic, pvalue
 
 end
 
@@ -104,23 +104,23 @@ Returns
 statistic : array, shape = [n_features,]
     The set of F values.
 
-probability : array, shape = [n_features,]
+pvalue : array, shape = [n_features,]
     The set of p-values.
 
 """
 function ftest(X, y)
 
   classes = unique(y)
-  statistic = []
-  probability = []
+  statistic = Float64[]
+  pvalue = Float64[]
 
   for c in eachcol(X)
     samples = [view(c, findall(v -> v == class, y), :) for class in classes]
     stat, prob = one_way_anova(samples...)
     push!(statistic, stat)
-    push!(probability, prob)
+    push!(pvalue, prob)
   end
   
-  return statistic, probability
+  return statistic, pvalue
 
 end
