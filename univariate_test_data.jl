@@ -20,8 +20,8 @@ statistic, prob = (6.423139965384153, 0.9953770090473866)
 
 iris = DataFrame(VegaDatasets.dataset("iris"))
 iris_X, iris_y = Matrix(iris[:, 1:4]), Array(iris[!, 5])
-@btime ftest(iris_X, iris_y)
+@btime ftest_classification(iris_X, iris_y)
 
-ftest_answer = ftest(iris_X, iris_y)
-py_ftest_answer = PyFS.f_classif(iris_X, iris_y)
-@assert ftest_answer == py_ftest_answer
+fc_answer = ftest_classification(iris_X, iris_y)
+py_fc_answer = PyFS.f_classif(iris_X, iris_y)
+@assert fc_answer == py_fc_answer

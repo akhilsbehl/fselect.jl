@@ -30,7 +30,7 @@ samples: Array{Float,2}: sample measurements for the test
 Returns
 -------
 statistic: float: The computed F-value of the test.
-pvalue: float: The associated p-value from the F-distribution
+pvalue: float: The associated p-value from the F-distribution.
 
 Notes
 -----
@@ -43,8 +43,7 @@ for the associated p-value to be valid.
     property is known as homoscedasticity.
 
 If these assumptions are not true for a given set of data, it may still be
-possible to use the Kruskal-Wallis H-test (`scipy.stats.kruskal`_) although
-with some loss of power.
+possible to use the Kruskal-Wallis H-test although with some loss of power.
 
 References
 ----------
