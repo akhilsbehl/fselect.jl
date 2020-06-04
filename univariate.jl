@@ -1,5 +1,5 @@
 # Univariate feature selection routines.
-# Shamelessly lifted from sklearn.feature_selection
+# Shamelessly lifted from sklearn.feature_selection._univariate_selection.py
 
 # Author: Akhil S. Behl
 # sklearn Authors: V. Michel, B. Thirion, G. Varoquaux, A. Gramfort,
@@ -11,6 +11,7 @@
 #    accumulated over the years. Unclear if they are all necessary.
 
 using Distributions
+using LinearAlgebra
 
 ###########################################################################
 #                            Scoring Functions                            #
@@ -25,7 +26,7 @@ more groups, possibly with differing sizes.
 
 Parameters
 ----------
-samples: Array{Float,2}: sample measurements for the test
+samples: Array{<:AbstractFloat,2}: sample measurements for the test
 
 Returns
 -------
@@ -34,6 +35,8 @@ pvalue: float: The associated p-value from the F-distribution.
 
 Notes
 -----
+The implementation does not check for or treat missing values.
+
 The ANOVA test has important assumptions that must be satisfied in order
 for the associated p-value to be valid.
 
@@ -81,7 +84,7 @@ function one_way_anova(samples...)
 
   statistic = msd_between_groups / msd_within_groups
   f_dist = Distributions.FDist(df_between_groups, df_within_groups)
-  pvalue = 1 - Distributions.cdf(f_dist, statistic)
+  pvalue = Distributions.ccdf(f_dist, statistic)
 
   return statistic, pvalue
 
@@ -92,10 +95,10 @@ end
 
 Parameters
 ----------
-X : Array{Float,2}: shape = [n_samples, n_features]
+X : Array{<:AbstractFloat,2}: shape = [n_samples, n_features]
     The set of regressors that will be tested sequentially.
 
-y : Array{Float,1}: shape(n_samples)
+y : Array{<:AbstractFloat,1}: shape(n_samples)
     The data matrix.
 
 Returns
@@ -106,8 +109,11 @@ statistic : array, shape = [n_features,]
 pvalue : array, shape = [n_features,]
     The set of p-values.
 
+Notes
+-----
+The implementation does not check for or treat missing values.
 """
-function ftest(X, y)
+function ftest_classification(X, y)
 
   classes = unique(y)
   statistic = Float64[]
@@ -121,5 +127,119 @@ function ftest(X, y)
   end
   
   return statistic, pvalue
+
+end
+
+
+"""
+Performs a chi-squared test.
+
+Pearson's chi-squared test is used to determine whether there is a statistically significant difference between the expected frequencies and the observed frequencies in one or more categories of a contingency table
+
+Parameters
+----------
+observed: Array{<:AbstractFloat,1}: observed frequency
+expected: Array{<:AbstractFloat,1}: expected frequency
+
+Returns
+-------
+statistic: float: The computed chi-squared value of the test
+pvalue: float: The associated p-value from the F-distribution
+
+Notes
+-----
+The implementation does not check for or treat missing values.
+"""
+function chisquare_test(observed, expected)
+
+  nrow, ncol = size(observed)
+  df, z, statistic = nrow - 1, zero(Float64), zeros(Float64, ncol)
+
+  for j in 1:ncol
+    for i in 1:nrow
+      increment = ((observed[i, j] - expected[i, j]) ^ 2) / expected[i, j]
+      if isfinite(increment)
+        statistic[j] += increment
+      end
+    end
+  end
+
+  cs_dist = Distributions.Chisq(df)
+  pvalue = Distributions.ccdf.(cs_dist, statistic)
+
+  return statistic, pvalue
+
+end
+
+
+"""
+Convert a categorical y into dummy variables.
+"""
+function binarize_classes(y)
+  uy = unique(y)
+  m, n = size(y, 1), size(uy, 1)
+  binarized = Array{Int8}(undef, m, n)
+  for (i, value) in enumerate(y)
+    for (j, class) in enumerate(uy)
+      binarized[i, j] = value == class ? one(Int8) : zero(Int8)
+    end
+  end
+  return binarized
+end
+
+
+"""Compute chi-squared stats between each non-negative feature and class.
+
+This score can be used to select the n_features features with the
+highest values for the test chi-squared statistic from X, which must
+contain only non-negative features such as booleans or frequencies
+(e.g., term counts in document classification), relative to the classes.
+
+Recall that the chi-square test measures dependence between stochastic
+variables, so using this function "weeds out" the features that are the
+most likely to be independent of class and therefore irrelevant for
+classification.
+
+Read more in the :ref:`User Guide <univariate_feature_selection>`.
+
+Parameters
+----------
+X : Array{<:AbstractFloat,2}: shape (n_samples, n_features)
+    Sample vectors.
+
+y : Array{<:AbstractFloat,1}: array-like of shape (n_samples,)
+    Target vector (class labels).
+
+Returns
+-------
+statistic : array, shape = (n_features,)
+            chisq statistics of each feature.
+pvalue : array, shape = (n_features,)
+         p-values of each feature.
+
+Notes
+-----
+Complexity of this algorithm is O(n_classes * n_features).
+"""
+function chisq(X, y)
+
+  for x in X
+    if x < zero(x)
+      error("Values in X must be non-negative")
+    end
+  end
+
+  ybin = binarize_classes(y)
+  if size(ybin, 2) == 1
+    ybin = hcat(ybin, one(Int8) - ybin)
+  end
+
+  observed = ybin'X
+
+  feature_count = sum(X, dims=1)
+  class_prob = mean(ybin, dims=1)
+  expected = class_prob'feature_count
+
+  return chisquare_test(observed, expected)
 
 end
