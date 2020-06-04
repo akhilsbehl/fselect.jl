@@ -176,7 +176,7 @@ end
 Convert a categorical y into dummy variables.
 """
 function binarize_classes(y)
-  uy = unique(y)
+  uy = sort(unique(y))
   m, n = size(y, 1), size(uy, 1)
   binarized = Array{Int8}(undef, m, n)
   for (i, value) in enumerate(y)
@@ -199,8 +199,6 @@ Recall that the chi-square test measures dependence between stochastic
 variables, so using this function "weeds out" the features that are the
 most likely to be independent of class and therefore irrelevant for
 classification.
-
-Read more in the :ref:`User Guide <univariate_feature_selection>`.
 
 Parameters
 ----------
