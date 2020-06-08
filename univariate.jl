@@ -57,10 +57,10 @@ References
 """
 function one_way_anova(samples...)
 
-  type_ = typeof(samples[1][1])
+  stype = eltype(samples)
   
-  n_groups = convert(type_, length(samples))
-  group_sizes = convert.(type_, [size(sample, 1) for sample in samples])
+  n_groups = convert(stype, length(samples))
+  group_sizes = convert.(stype, [size(sample, 1) for sample in samples])
   total_size = sum(group_sizes)
 
   squared_samples = [sample .^ 2 for sample in samples]
@@ -76,7 +76,7 @@ function one_way_anova(samples...)
 
   # df := degrees of freedom
   df_within_groups = total_size - n_groups
-  df_between_groups = n_groups - one(type_)
+  df_between_groups = n_groups - one(stype)
 
   # msd := mean of squared deviates
   msd_within_groups = ssd_within_groups / df_within_groups
