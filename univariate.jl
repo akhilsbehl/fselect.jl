@@ -9,7 +9,9 @@
 # 1. Does not explicitly implement or test anything with sparse matrices.
 # 2. Does not do most of the sanity checking and edge cases that sklearn has
 #    accumulated over the years. Unclear if they are all necessary.
+# 3. Does not check for or handle missing values.
 
+using DataFrames
 using Distributions
 using LinearAlgebra
 
@@ -58,20 +60,19 @@ References
 """
 function one_way_anova(samples...)
 
-  stype = eltype(samples)
-  
+  stype = eltype(samples[1])
+
   n_groups = convert(stype, length(samples))
   group_sizes = convert.(stype, [size(sample, 1) for sample in samples])
   total_size = sum(group_sizes)
 
-  squared_samples = [sample .^ 2 for sample in samples]
-  group_sum_squares = sum.(squared_samples)
+  group_sum_squares = map(x -> sum(abs2.(x)), samples)
   total_sum_squares = sum(group_sum_squares)
-  square_of_sums = (sum.(samples)) .^ 2
+  square_of_sums = abs2.(sum.(samples))
 
   # ssd := sum of squared deviates
   ssd = group_sum_squares .- (square_of_sums ./ group_sizes)
-  total_ssd = total_sum_squares - sum(sum.(samples)) ^ 2 / total_size
+  total_ssd = total_sum_squares - abs2(sum(sum.(samples))) / total_size
   ssd_within_groups = sum(ssd)
   ssd_between_groups = total_ssd - ssd_within_groups
 
