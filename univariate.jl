@@ -26,12 +26,13 @@ more groups, possibly with differing sizes.
 
 Parameters
 ----------
-samples: Array{<:AbstractFloat,2}: sample measurements for the test
+samples: Array{Array{<:Number,2},1}: size = s samples of n observations
+         Sample measurements for the test
 
 Returns
 -------
-statistic: float: The computed F-value of the test.
-pvalue: float: The associated p-value from the F-distribution.
+statistic: Float64: The computed F-value of the test.
+pvalue: Float64: The associated p-value from the F-distribution.
 
 Notes
 -----
@@ -95,40 +96,52 @@ end
 
 Parameters
 ----------
-X : Array{<:AbstractFloat,2}: shape = [n_samples, n_features]
+X: Array{<:Number,2}: size = (n_samples, n_features)
     The set of regressors that will be tested sequentially.
 
-y : Array{<:AbstractFloat,1}: shape(n_samples)
+    y: Array{<:Number,1}: size = (n_samples,)
     The data matrix.
 
 Returns
 -------
-statistic : array, shape = [n_features,]
+statistics: array, size = (n_features,)
     The set of F values.
 
-pvalue : array, shape = [n_features,]
+pvalues: array, size = (n_features,)
     The set of p-values.
 
 Notes
 -----
-The implementation does not check for or treat missing values.
+The implementation does not check for or handle missing values.
 """
 function ftest_classification(X, y)
 
+  n_features = size(X, 2)
   classes = unique(y)
-  statistic = Float64[]
-  pvalue = Float64[]
+  statistics = Array{Float64}(undef, n_features)
+  pvalues = Array{Float64}(undef, n_features)
 
-  for c in eachcol(X)
+  for (i, c) in enumerate(eachcol(X))
     samples = [view(c, findall(v -> v == class, y), :) for class in classes]
-    stat, prob = one_way_anova(samples...)
-    push!(statistic, stat)
-    push!(pvalue, prob)
+    statistics[i], pvalues[i] = one_way_anova(samples...)
   end
-  
-  return statistic, pvalue
+
+  return statistics, pvalues
 
 end
+
+function ftest_classification(X::DataFrame, y)
+  @assert size(X, 1) == size(y, 1)
+  X = Matrix(X)
+  return ftest_classification(X, y)
+end
+
+function ftest_classification(X::DataFrame, y::DataFrame)
+  @assert size(X, 1) == size(y, 1)
+  X, y = Matrix(X), Vector(y)
+  return ftest_classification(X, y)
+end
+
 
 
 """
@@ -138,36 +151,41 @@ Pearson's chi-squared test is used to determine whether there is a statistically
 
 Parameters
 ----------
-observed: Array{<:AbstractFloat,1}: observed frequency
-expected: Array{<:AbstractFloat,1}: expected frequency
+observed: Array{<:Number,2}: size = (n_classes, n_features)
+          Observed frequencies of classes & features
+
+expected: Array{<:Number,2}: size = (n_classes, n_features)
+          Expected frequencies of classes & features
 
 Returns
 -------
-statistic: float: The computed chi-squared value of the test
-pvalue: float: The associated p-value from the F-distribution
+statistics: Array{Float64, 1}: size = (n_features,)
+            The computed chi-squared value of the test
+pvalues: Array{Float64, 1}: size = (n_features,)
+         The associated p-value from the F-distribution
 
 Notes
 -----
-The implementation does not check for or treat missing values.
+The implementation does not check for or handle missing values.
 """
 function chisquare_test(observed, expected)
 
   nrow, ncol = size(observed)
-  df, z, statistic = nrow - 1, zero(Float64), zeros(Float64, ncol)
+  df, statistics = nrow - 1, zeros(Float64, ncol)
 
   for j in 1:ncol
     for i in 1:nrow
-      increment = ((observed[i, j] - expected[i, j]) ^ 2) / expected[i, j]
+      increment = abs2(observed[i, j] - expected[i, j]) / expected[i, j]
       if isfinite(increment)
-        statistic[j] += increment
+        statistics[j] += increment
       end
     end
   end
 
   cs_dist = Distributions.Chisq(df)
-  pvalue = Distributions.ccdf.(cs_dist, statistic)
+  pvalues = Distributions.ccdf.(cs_dist, statistics)
 
-  return statistic, pvalue
+  return statistics, pvalues
 
 end
 
@@ -202,22 +220,18 @@ classification.
 
 Parameters
 ----------
-X : Array{<:AbstractFloat,2}: shape (n_samples, n_features)
+X: Array{<:Number,2}: size = (n_samples, n_features)
     Sample vectors.
 
-y : Array{<:AbstractFloat,1}: array-like of shape (n_samples,)
+y: Array{<:Number,1}: size = (n_samples,)
     Target vector (class labels).
 
 Returns
 -------
-statistic : array, shape = (n_features,)
+statistics: array, size = (n_features,)
             chisq statistics of each feature.
-pvalue : array, shape = (n_features,)
+pvalues: array, size = (n_features,)
          p-values of each feature.
-
-Notes
------
-Complexity of this algorithm is O(n_classes * n_features).
 """
 function chisq(X, y)
 
