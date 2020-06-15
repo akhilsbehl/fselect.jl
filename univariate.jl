@@ -241,3 +241,111 @@ function chisq(X, y)
   return chisquare_test(observed, expected)
 
 end
+
+function chisq(X::DataFrame, y)
+  @assert size(X, 1) == size(y, 1)
+  X = Matrix(X)
+  return chisq(X, y)
+end
+
+function chisq(X::DataFrame, y::DataFrame)
+  @assert size(X, 1) == size(y, 1)
+  X, y = Matrix(X), Vector(y)
+  return chisq(X, y)
+end
+
+
+"""
+Description
+-----------
+Compute norm of the rows of a 2-dimensional array.
+
+Parameters
+----------
+x: Array{<:Number,2}: size = (n_rows, n_cols)
+   array to calculate norms of
+
+Returns
+-------
+rownorms: Array{Float64, 1}: size = (n_rows,)
+          array of calculated norms, size = n_rows
+"""
+function rownorms(x)
+  n_rows = size(x, 1)
+  norms = Array{Float64}(undef, n_rows)
+  @inbounds for i in 1:n_rows
+    norms[i] = sqrt(sum(abs2.(view(x, i, :))))
+  end
+  return norms
+end
+
+
+"""Univariate linear regression tests.
+
+Linear model for testing the individual effect of each of many regressors.
+This is a scoring function to be used in a feature selection procedure, not
+a free standing feature selection procedure.
+
+This is done in 2 steps:
+
+1. The correlation between each regressor and the target is computed,
+    that is, ((X[:, i] - mean(X[:, i])) * (y - mean_y)) / (std(X[:, i]) *
+    std(y)).
+2. It is converted to an F score then to a p-value.
+
+Parameters
+----------
+X: Array{<:Number,2}: size = (n_samples, n_features)
+    Sample vectors.
+
+y: Array{<:Number,1}: size = (n_samples,)
+    Target vector (class labels).
+
+center: True, bool,
+    If true, X and y will be centered.
+
+Returns
+-------
+statistics: array, size = (n_features,)
+             chisq statistics of each feature.
+pvalues: array, size = (n_features,)
+          p-values of each feature.
+"""
+function ftest_regression(X, y, center=true)
+
+  n_samples = size(X, 1)
+
+  # NB: E[(x - mean(x))*(y - mean(y))] = E[x*(y - mean(y))],
+  # so we need only center Y
+  if center
+      y = y - mean(y)
+      X_means = mean(X, dims=1)
+      # compute the scaled standard deviations via moments
+      X_norms = rownorms(X')' - n_samples * abs2.(X_means)
+  else
+    X_norms = rownorms(X')'
+  end
+
+  _1 = one(eltype(X_means))
+  sq_corr = abs2.(y'X .* (_1 ./ X_means) / norm(y))
+
+  df = size(y, 1) - (center ? 2 : 1)
+  statistic = sq_corr .* (_1 - sq_corr) .* df
+  f_dist = Distributions.FDist.(1, df)
+  pvalue = Distributions.ccdf.(f_dist, statistic)
+
+  return statistic, pvalue
+
+end
+
+function ftest_regression(X::DataFrame, y, center=true)
+  @assert size(X, 1) == size(y, 1)
+  X = Matrix(X)
+  return ftest_regression(X, y, center)
+end
+
+function ftest_regression(X::DataFrame, y::DataFrame, center=true)
+  @assert size(X, 1) == size(y, 1)
+  X, y = Matrix(X), Vector(y)
+  return ftest_regression(X, y, center)
+end
